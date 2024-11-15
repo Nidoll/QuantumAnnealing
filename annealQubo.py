@@ -2,43 +2,88 @@ import pickle
 import os
 import dimod
 import dimod.binary_quadratic_model
-import dwave.embedding
 import dwave.inspector
 import dwave.system
-import matplotlib.pyplot as plt
 import minorminer
-import numpy as np
-import networkx as nx
-from dimod.generators import random_nae3sat
 from dwave.system import DWaveSampler, FixedEmbeddingComposite
 from dwave.preprocessing import ScaleComposite
+import json
 
-with open("quboV2.pkl", "rb") as f:
-    qubo = pickle.load(f)
+problems = ["nQueens", "rotatingRostering"]
 
-with open("bqmV2.pkl", "rb") as f:
-    bqm = pickle.load(f)
+# customizable
+problem = problems[1]
+
 
 adv2pSampler = DWaveSampler(solver=dict(topology__type="zephyr"))
-#adv2pSampler = DWaveSampler()
 
-print("Searching embedding.")
+currDir = os.path.dirname(__file__)
+problemDir = os.path.join(currDir, problem)
+quboDir = os.path.join(problemDir, problem+"Qubo.pkl")
+resultDir = os.path.join(problemDir,"annealResults")
+
+with open(quboDir, 'rb') as f:
+    qubo = pickle.load(f)
+print("Qubo loaded.")
+bqm = dimod.BinaryQuadraticModel.from_qubo(qubo)
+
+print("Trying to find embedding.")
 embedding = minorminer.find_embedding(dimod.to_networkx_graph(bqm), adv2pSampler.to_networkx_graph())
-print("Embedding Found.")
+if embedding == {}:
+    print("No embedding found!")
+    exit()
+else:
+    print("Embedding Found.")
 
-#sampleset = dwave.system.EmbeddingComposite(adv2pSampler).sample(bqm, num_reads=1000)
+cnt = 1
+while(True):
+    dirPath = os.path.join(resultDir,"run"+str(cnt))
+    if(os.path.isdir(dirPath)):
+        cnt += 1
+    else:
+        try:
+            os.mkdir(dirPath)
+            print("Directory " + "run"+str(cnt) + " to store result created.")
+        except FileExistsError:
+            print("Directory " + "run"+str(cnt) + " already exists.")
+            exit()
+        except PermissionError:
+            print("Permission denied: Unable to create " + "run"+str(cnt) + " directory.")
+            exit()
+        except Exception as e:
+            print(f"An error occured: {e}")
+            exit()
+        break 
 
-sampleset = FixedEmbeddingComposite(ScaleComposite(adv2pSampler), embedding=embedding).sample(
-    bqm, 
+print("Starting sampler.")
+sampleset = FixedEmbeddingComposite(ScaleComposite(adv2pSampler), embedding=embedding).sample_qubo(
+    qubo, 
     quadratic_range=adv2pSampler.properties["extended_j_range"],
     bias_range=adv2pSampler.properties["h_range"],
-    num_reads=500,
+    num_reads=1000,
     auto_scale=True,
-    label="Example - nQueensV2",
+    label="Example - "+problem,
     #annealing_time=150
 )
+print("Sampler finished.")
 
+pklDir = os.path.join(dirPath,"sampleset.pkl") 
+with open(pklDir, "wb+") as f:
+    pickle.dump(sampleset.to_serializable(), f)
+print("Sampleset saved as pkl.")
+
+try:
+    jsonDir = os.path.join(dirPath,"sampleset.json")
+    with open(jsonDir, 'w+') as f:
+        json.dump(sampleset.to_serializable(),f,indent=6, skipkeys=True)
+    print("Sampleset saved as json.")
+except:
+    print("Json serialization not possible. Skipping Json.")
+
+csvDir = os.path.join(dirPath,"samples.csv")
 pandaData = sampleset.to_pandas_dataframe()
-pandaData.to_csv('nQueensTimeV2.csv', index=False)
+pandaData.to_csv(csvDir, index=False)
+print("Samples saved as csv.")
 
 dwave.inspector.show(sampleset)
+
