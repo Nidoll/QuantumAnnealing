@@ -9,10 +9,10 @@ from dwave.system import DWaveSampler, FixedEmbeddingComposite
 from dwave.preprocessing import ScaleComposite
 import json
 
-problems = ["nQueens", "rotatingRostering"]
+problems = ["nQueens", "rotatingRostering", "graphColoring"]
 
 # customizable
-problem = problems[1]
+problem = problems[2]
 
 
 adv2pSampler = DWaveSampler(solver=dict(topology__type="zephyr"))

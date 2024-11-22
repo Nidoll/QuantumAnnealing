@@ -8,13 +8,14 @@ import dwave.system
 from dwave.system import DWaveSampler
 import json
 import numpy as np
+from PIL import Image, ImageDraw
 
-problems = ["nQueens", "rotatingRostering"]
+problems = ["nQueens", "rotatingRostering", "graphColoring"]
 
 # customizable
-problem = problems[1]
+problem = problems[2]
 run = 1
-maxSolutionsShown = 3
+maxSolutionsShown = 1
 
 adv2pSampler = DWaveSampler(solver=dict(topology__type="zephyr"))
 
@@ -27,7 +28,7 @@ with open(quboDir, 'rb') as f:
     qubo = pickle.load(f)
 bqm = dimod.BinaryQuadraticModel.from_qubo(qubo)
 
-sampleDir = os.path.join(resultDir,"run1/sampleset.pkl")
+sampleDir = os.path.join(resultDir,"run"+str(run)+"/sampleset.pkl")
 with open(sampleDir, 'rb') as f:
     sampleset = dimod.SampleSet.from_serializable(pickle.load(f))
 
@@ -103,12 +104,65 @@ elif problem == "rotatingRostering":
         print("Employe "+str(i)+": ", end=" ")
         for j in range(days):
             try:
-                val = mapping[np.nonzero(matrix[i,j] == 1)[0]][0]
+                val = mapping[np.nonzero(matrix[i,j] == 1)[0]]
             except:
                 val = "error   |"
             print(val, end= " ")
         print("")
     print("")
     counter+=1
+
+elif problem == "graphColoring":
+
+    nodes = 0
+    colors = 0
+
+    counter = 1
+    for s in sol:
+
+        cnt = 0
+        while True:
+            try: 
+                cnt += 1
+                a = s["v["+str(cnt)+"][0]"]
+            except:
+                nodes = cnt
+                break
+
+        cnt = 0
+        while True:
+            try: 
+                cnt += 1
+                a = s["v[0]["+str(cnt)+"]"]
+            except:
+                colors = cnt
+                break
+
+        # display coloring
+        points = np.array([(207,181),(392,233),(528,268),(673,134),(658,303),(777,392),(880,518),(783,544),(849,758),
+                           (900,696),(708,653),(755,791),(613,833),(560,623),(494,503),(414,575),(338,501),(371,396),(582,440)],dtype=object)
+
+        # last color is for errors
+        colorsMapping = [(255,0,0),(255,255,0),(0,255,0),(0,255,255),(255,0,255),(0,0,255),(0,0,0)]
+
+        img = Image.open("graphColoring/brandenburg.png")
+        draw = ImageDraw.Draw(img)
+
+        matrix = np.zeros((nodes,colors),dtype=int)
+
+        for i in range(nodes):
+            for j in range(colors):
+                matrix[i,j] = s["v["+str(i)+"]["+str(j)+"]"]
+
+
+        for i in range(nodes):
+            try:
+                color = np.nonzero(matrix[i] == 1)[0][0]
+            except:
+                color = 6
+            draw.circle(points[i],25,fill=colorsMapping[color])
+
+        img.show()
+
 
         
